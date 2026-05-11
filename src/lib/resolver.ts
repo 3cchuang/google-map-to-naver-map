@@ -59,19 +59,28 @@ function extractCanonicalQuery(finalUrl: string): string | null {
   return query || null;
 }
 
-// Extract the landmark/place name from the canonical query.
-// Google's format: "{city}, {district}, {road}, {number} {building} {floor} {name}"
-// The segment after the LAST comma is the building+name part — much cleaner
-// to feed to Naver search than the full mixed-language string.
+// Extract a Naver-search-friendly landmark from the canonical query.
+//
+// Naver Map search is strict: mixed-language multi-token queries
+// ("삼정타워 1F Shake Shack") usually return zero results, but single
+// pure-Hangul tokens ("삼정타워") reliably hit the building. Strategy:
+//
+// 1. Prefer the LAST Hangul-only span in the query — in Google's path
+//    "{city}, {district}, {road}, {number} {building} {floor} {name}",
+//    the building name (the most useful Naver anchor) is the trailing
+//    Hangul span.
+// 2. If no Hangul, fall back to the last comma-segment with the leading
+//    street number stripped (best-effort for non-Korean place pages).
 function extractLandmark(query: string): string {
+  const hangulSpans = query.match(/[가-힯][가-힯\s]*[가-힯]|[가-힯]+/g);
+  if (hangulSpans && hangulSpans.length > 0) {
+    return hangulSpans[hangulSpans.length - 1].trim();
+  }
+
   const parts = query.split(',').map((s) => s.trim()).filter(Boolean);
   if (parts.length <= 1) return query;
 
-  let last = parts[parts.length - 1];
-  // Strip leading street number, e.g. "672 삼정타워..." -> "삼정타워..."
-  last = last.replace(/^\d+\s+/, '').trim();
-
-  // If we ended up with just a number or empty, fall back to full query
+  let last = parts[parts.length - 1].replace(/^\d+\s+/, '').trim();
   if (!last || /^\d+$/.test(last)) return query;
   return last;
 }
