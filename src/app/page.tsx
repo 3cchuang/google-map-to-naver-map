@@ -46,21 +46,43 @@ export default function Home() {
     if (!result) return;
 
     const q = result.query || result.address || result.title;
-    let scheme = "";
+    let nmapPath = "";
     let web = "";
 
     if (q) {
-      scheme = `nmap://search?query=${encodeURIComponent(q)}&appname=gmap2naver`;
-      web = `https://map.naver.com/p/search/${encodeURIComponent(q)}`;
+      const encoded = encodeURIComponent(q);
+      nmapPath = `search?query=${encoded}&appname=gmap2naver`;
+      web = `https://map.naver.com/p/search/${encoded}`;
     } else if (result.lat && result.lng) {
-      scheme = `nmap://map?lat=${result.lat}&lng=${result.lng}&zoom=17&appname=gmap2naver`;
+      nmapPath = `map?lat=${result.lat}&lng=${result.lng}&zoom=17&appname=gmap2naver`;
       web = `https://map.naver.com/p/?c=15.00,0,0,0,dh&lng=${result.lng}&lat=${result.lat}`;
     } else {
       return;
     }
 
-    window.location.href = scheme;
-    setTimeout(() => window.open(web, "_blank"), 1500);
+    const ua = navigator.userAgent;
+    const isAndroid = /Android/i.test(ua);
+    const isIOS = /iPhone|iPad|iPod/i.test(ua);
+
+    if (isAndroid) {
+      // Android Chrome supports intent:// with native fallback — opens Naver Map
+      // app if installed, otherwise navigates to the browser_fallback_url.
+      const intentUrl =
+        `intent://${nmapPath}#Intent;scheme=nmap;` +
+        `package=com.nhn.android.nmap;` +
+        `S.browser_fallback_url=${encodeURIComponent(web)};end`;
+      window.location.href = intentUrl;
+    } else if (isIOS) {
+      // iOS Safari: nmap:// silently fails if app missing. Use same-tab
+      // location.href fallback after a short delay (popup blocker won't block).
+      window.location.href = `nmap://${nmapPath}`;
+      setTimeout(() => {
+        window.location.href = web;
+      }, 1500);
+    } else {
+      // Desktop: just open the web map in a new tab (within user gesture, not blocked).
+      window.open(web, "_blank");
+    }
   };
 
   const copy = async (text: string, msg: string) => {
