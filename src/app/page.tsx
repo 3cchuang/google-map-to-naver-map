@@ -1,10 +1,18 @@
 "use client";
 import { useState } from "react";
 
+type ResolveResult = {
+  query: string | null;
+  title: string;
+  lat: string | null;
+  lng: string | null;
+  error?: string;
+};
+
 export default function Home() {
   const [url, setUrl] = useState("");
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<{lat: string | null, lng: string | null, title: string, error?: string} | null>(null);
+  const [result, setResult] = useState<ResolveResult | null>(null);
   const [debugMsg, setDebugMsg] = useState("");
 
   const handleConvert = async () => {
@@ -12,58 +20,70 @@ export default function Home() {
     setLoading(true);
     setResult(null);
     setDebugMsg("解析中...");
-    
+
     try {
       const res = await fetch("/api/resolve", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url }),
       });
-      
-      const data = await res.json();
+      const data: ResolveResult = await res.json();
       setResult(data);
-      setDebugMsg(data.lat ? "座標解析成功！" : "已抓取地點名稱（搜尋模式）");
-    } catch (err: any) {
+
+      if (data.error) setDebugMsg(data.error);
+      else if (data.query) setDebugMsg("地址解析成功");
+      else if (data.lat) setDebugMsg("僅取得座標，將以座標開啟");
+      else setDebugMsg("無法解析");
+    } catch {
       setDebugMsg("系統繁忙，請稍後再試");
     } finally {
       setLoading(false);
     }
   };
 
-  const openNaver = (mode: 'direct' | 'search') => {
+  const openNaver = () => {
     if (!result) return;
-    
-    let naverUrl = "";
-    if (mode === 'direct' && result.lat) {
-      naverUrl = `nmap://place?lat=${result.lat}&lng=${result.lng}&name=${encodeURIComponent(result.title)}&appname=gmap2naver`;
+
+    const query = result.query || result.title;
+    let scheme = "";
+    let web = "";
+
+    if (query) {
+      scheme = `nmap://search?query=${encodeURIComponent(query)}&appname=gmap2naver`;
+      web = `https://map.naver.com/p/search/${encodeURIComponent(query)}`;
+    } else if (result.lat && result.lng) {
+      scheme = `nmap://map?lat=${result.lat}&lng=${result.lng}&zoom=17&appname=gmap2naver`;
+      web = `https://map.naver.com/p/?c=15.00,0,0,0,dh&lng=${result.lng}&lat=${result.lat}`;
     } else {
-      naverUrl = `nmap://search?query=${encodeURIComponent(result.title)}&appname=gmap2naver`;
+      return;
     }
-    
-    window.location.href = naverUrl;
-    
-    // Fallback to web
-    setTimeout(() => {
-      if (mode === 'direct' && result.lat) {
-        window.open(`https://map.naver.com/v5/search/${encodeURIComponent(result.title)}?c=${result.lng},${result.lat},15,0,0,0,dh`, "_blank");
-      } else {
-        window.open(`https://map.naver.com/v5/search/${encodeURIComponent(result.title)}`, "_blank");
-      }
-    }, 1500);
+
+    window.location.href = scheme;
+    setTimeout(() => window.open(web, "_blank"), 1500);
+  };
+
+  const copyAddress = async () => {
+    if (!result?.query) return;
+    try {
+      await navigator.clipboard.writeText(result.query);
+      setDebugMsg("地址已複製");
+    } catch {
+      setDebugMsg("複製失敗，請手動選取");
+    }
   };
 
   return (
     <main>
       <div style={{ fontSize: "3rem", marginBottom: "1rem" }}>🇰🇷</div>
       <h1>Google &rarr; Naver Map</h1>
-      <p className="subtitle">即使沒有精確座標，也能一鍵搜尋</p>
+      <p className="subtitle">用地址直接在 Naver Map 搜尋</p>
 
       <div className="input-group">
-        <input 
-          type="text" 
-          value={url} 
-          onChange={(e) => setUrl(e.target.value)} 
-          placeholder="貼上分享連結..."
+        <input
+          type="text"
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
+          placeholder="貼上 Google Maps 分享連結..."
         />
       </div>
 
@@ -77,23 +97,44 @@ export default function Home() {
 
       {result && (
         <div className="result-card">
-          <div style={{ marginBottom: "1.5rem" }}>
-            <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)", textTransform: "uppercase", fontWeight: "bold" }}>目的地</span>
-            <div style={{ fontSize: "1.2rem", fontWeight: "700", marginTop: "4px" }}>{result.title}</div>
+          <div style={{ marginBottom: "1rem" }}>
+            <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)", textTransform: "uppercase", fontWeight: "bold" }}>
+              地點
+            </span>
+            <div style={{ fontSize: "1.2rem", fontWeight: 700, marginTop: 4 }}>{result.title}</div>
           </div>
-          
-          {result.lat ? (
-            <button className="naver-btn" onClick={() => openNaver('direct')}>
-              在 Naver Map 開啟 (精確定位)
-            </button>
-          ) : (
-            <button className="naver-btn" style={{ background: "#007aff" }} onClick={() => openNaver('search')}>
-              在 Naver Map 搜尋此店名
+
+          {result.query && (
+            <div style={{ marginBottom: "1rem" }}>
+              <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)", textTransform: "uppercase", fontWeight: "bold" }}>
+                搜尋字串
+              </span>
+              <div style={{ fontSize: "0.95rem", marginTop: 4, wordBreak: "break-word" }}>{result.query}</div>
+            </div>
+          )}
+
+          {(result.query || result.lat) && (
+            <button className="naver-btn" onClick={openNaver}>
+              在 Naver Map 開啟
             </button>
           )}
-          
+
+          {result.query && (
+            <button
+              className="naver-btn"
+              style={{ background: "#888", marginTop: "0.5rem" }}
+              onClick={copyAddress}
+            >
+              複製地址
+            </button>
+          )}
+
           <p style={{ fontSize: "0.75rem", color: "var(--text-secondary)", marginTop: "1rem" }}>
-            {result.lat ? "已成功對接座標，將直接定位" : "由於 Google 隱藏了座標，我們將為您在 Naver 中自動搜尋店名"}
+            {result.query
+              ? "將以地址在 Naver Map 搜尋（命中率較座標高）"
+              : result.lat
+              ? "未取得地址，將以座標開啟地圖"
+              : "解析失敗"}
           </p>
         </div>
       )}
