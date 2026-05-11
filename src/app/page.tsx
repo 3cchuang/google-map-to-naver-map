@@ -2,7 +2,8 @@
 import { useState } from "react";
 
 type ResolveResult = {
-  query: string | null;
+  query: string | null;     // short landmark
+  address: string | null;   // full canonical address+name
   title: string;
   lat: string | null;
   lng: string | null;
@@ -31,7 +32,7 @@ export default function Home() {
       setResult(data);
 
       if (data.error) setDebugMsg(data.error);
-      else if (data.query) setDebugMsg("地址解析成功");
+      else if (data.query) setDebugMsg("地標解析成功");
       else if (data.lat) setDebugMsg("僅取得座標，將以座標開啟");
       else setDebugMsg("無法解析");
     } catch {
@@ -44,13 +45,13 @@ export default function Home() {
   const openNaver = () => {
     if (!result) return;
 
-    const query = result.query || result.title;
+    const q = result.query || result.address || result.title;
     let scheme = "";
     let web = "";
 
-    if (query) {
-      scheme = `nmap://search?query=${encodeURIComponent(query)}&appname=gmap2naver`;
-      web = `https://map.naver.com/p/search/${encodeURIComponent(query)}`;
+    if (q) {
+      scheme = `nmap://search?query=${encodeURIComponent(q)}&appname=gmap2naver`;
+      web = `https://map.naver.com/p/search/${encodeURIComponent(q)}`;
     } else if (result.lat && result.lng) {
       scheme = `nmap://map?lat=${result.lat}&lng=${result.lng}&zoom=17&appname=gmap2naver`;
       web = `https://map.naver.com/p/?c=15.00,0,0,0,dh&lng=${result.lng}&lat=${result.lat}`;
@@ -62,11 +63,10 @@ export default function Home() {
     setTimeout(() => window.open(web, "_blank"), 1500);
   };
 
-  const copyAddress = async () => {
-    if (!result?.query) return;
+  const copy = async (text: string, msg: string) => {
     try {
-      await navigator.clipboard.writeText(result.query);
-      setDebugMsg("地址已複製");
+      await navigator.clipboard.writeText(text);
+      setDebugMsg(msg);
     } catch {
       setDebugMsg("複製失敗，請手動選取");
     }
@@ -76,7 +76,7 @@ export default function Home() {
     <main>
       <div style={{ fontSize: "3rem", marginBottom: "1rem" }}>🇰🇷</div>
       <h1>Google &rarr; Naver Map</h1>
-      <p className="subtitle">用地址直接在 Naver Map 搜尋</p>
+      <p className="subtitle">用地標名直接在 Naver Map 搜尋</p>
 
       <div className="input-group">
         <input
@@ -97,23 +97,29 @@ export default function Home() {
 
       {result && (
         <div className="result-card">
-          <div style={{ marginBottom: "1rem" }}>
-            <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)", textTransform: "uppercase", fontWeight: "bold" }}>
-              地點
-            </span>
-            <div style={{ fontSize: "1.2rem", fontWeight: 700, marginTop: 4 }}>{result.title}</div>
-          </div>
-
           {result.query && (
             <div style={{ marginBottom: "1rem" }}>
               <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)", textTransform: "uppercase", fontWeight: "bold" }}>
-                搜尋字串
+                搜尋關鍵字
               </span>
-              <div style={{ fontSize: "0.95rem", marginTop: 4, wordBreak: "break-word" }}>{result.query}</div>
+              <div style={{ fontSize: "1.2rem", fontWeight: 700, marginTop: 4, wordBreak: "break-word" }}>
+                {result.query}
+              </div>
             </div>
           )}
 
-          {(result.query || result.lat) && (
+          {result.address && result.address !== result.query && (
+            <div style={{ marginBottom: "1rem" }}>
+              <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)", textTransform: "uppercase", fontWeight: "bold" }}>
+                完整地址
+              </span>
+              <div style={{ fontSize: "0.9rem", marginTop: 4, wordBreak: "break-word", color: "var(--text-secondary)" }}>
+                {result.address}
+              </div>
+            </div>
+          )}
+
+          {(result.query || result.address || result.lat) && (
             <button className="naver-btn" onClick={openNaver}>
               在 Naver Map 開啟
             </button>
@@ -123,15 +129,25 @@ export default function Home() {
             <button
               className="naver-btn"
               style={{ background: "#888", marginTop: "0.5rem" }}
-              onClick={copyAddress}
+              onClick={() => copy(result.query!, "已複製地標名")}
             >
-              複製地址
+              複製地標名
+            </button>
+          )}
+
+          {result.address && (
+            <button
+              className="naver-btn"
+              style={{ background: "#555", marginTop: "0.5rem" }}
+              onClick={() => copy(result.address!, "已複製完整地址")}
+            >
+              複製完整地址
             </button>
           )}
 
           <p style={{ fontSize: "0.75rem", color: "var(--text-secondary)", marginTop: "1rem" }}>
             {result.query
-              ? "將以地址在 Naver Map 搜尋（命中率較座標高）"
+              ? "點上方按鈕用地標名在 Naver Map 搜尋；如搜不到再試完整地址。"
               : result.lat
               ? "未取得地址，將以座標開啟地圖"
               : "解析失敗"}

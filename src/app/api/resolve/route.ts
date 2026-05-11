@@ -10,7 +10,7 @@ export async function POST(request: Request) {
 
     const data = await resolveGoogleUrl(url);
 
-    if (!data.query && !data.lat) {
+    if (!data.query && !data.address && !data.lat) {
       return NextResponse.json({
         ...data,
         error: '無法從此連結解析地址，請改用「分享 > 複製連結」並再試一次。',

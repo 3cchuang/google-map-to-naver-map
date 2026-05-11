@@ -59,6 +59,23 @@ function extractCanonicalQuery(finalUrl: string): string | null {
   return query || null;
 }
 
+// Extract the landmark/place name from the canonical query.
+// Google's format: "{city}, {district}, {road}, {number} {building} {floor} {name}"
+// The segment after the LAST comma is the building+name part — much cleaner
+// to feed to Naver search than the full mixed-language string.
+function extractLandmark(query: string): string {
+  const parts = query.split(',').map((s) => s.trim()).filter(Boolean);
+  if (parts.length <= 1) return query;
+
+  let last = parts[parts.length - 1];
+  // Strip leading street number, e.g. "672 삼정타워..." -> "삼정타워..."
+  last = last.replace(/^\d+\s+/, '').trim();
+
+  // If we ended up with just a number or empty, fall back to full query
+  if (!last || /^\d+$/.test(last)) return query;
+  return last;
+}
+
 function extractCoordinates(html: string, finalUrl: string): { lat: string; lng: string } | null {
   // Pattern A: [null,null,lat,lng]
   const tagged = /\[null,null,(-?\d+\.\d+),(-?\d+\.\d+)\]/g;
@@ -146,14 +163,16 @@ export async function resolveGoogleUrl(url: string) {
     }
   }
 
-  const query = extractCanonicalQuery(finalUrl);
+  const fullAddress = extractCanonicalQuery(finalUrl);
+  const landmark = fullAddress ? extractLandmark(fullAddress) : null;
   const coords = extractCoordinates(html, finalUrl);
   const title = extractTitle(html);
 
   return {
     url: finalUrl,
-    query,
-    title: title || query || '未知地點',
+    query: landmark,        // primary: short landmark for Naver search
+    address: fullAddress,   // full address for display / manual copy
+    title: title || landmark || fullAddress || '未知地點',
     lat: coords?.lat ?? null,
     lng: coords?.lng ?? null,
   };
