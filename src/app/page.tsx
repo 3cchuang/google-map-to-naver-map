@@ -44,7 +44,6 @@ export default function Home() {
     const nmapUrl = `nmap://search?query=${encoded}&appname=gmap2naver`;
     const webUrl = `https://map.naver.com/p/search/${encoded}`;
 
-    // 優先嘗試喚起 App (支援 Android Intent 與 iOS nmap)
     const isAndroid = /Android/i.test(navigator.userAgent);
     if (isAndroid) {
       window.location.href = `intent://search?query=${encoded}#Intent;scheme=nmap;package=com.nhn.android.nmap;S.browser_fallback_url=${encodeURIComponent(webUrl)};end`;
@@ -90,7 +89,6 @@ export default function Home() {
 
       {result && (
         <div className="result-card">
-          {/* 優先顯示最精確的搜尋關鍵字 (通常是韓文店名) */}
           <div style={{ marginBottom: "1.5rem" }}>
             <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)", textTransform: "uppercase", fontWeight: "bold" }}>推薦搜尋詞 (韓文)</span>
             <div style={{ fontSize: "1.4rem", fontWeight: 800, marginTop: "8px", color: "var(--primary)", wordBreak: "break-word" }}>
@@ -106,7 +104,6 @@ export default function Home() {
             </div>
           </div>
 
-          {/* 備案：完整地址 */}
           {result.address && (
             <div style={{ marginTop: "1.5rem", borderTop: "1px solid #eee", paddingTop: "1rem" }}>
               <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)", fontWeight: "bold" }}>如果搜不到店名，請試地址：</span>
@@ -124,7 +121,7 @@ export default function Home() {
         </div>
       )}
 
-      <div style={{ marginTop: "2rem", fontSize: "0.75rem", color: var(--text-secondary) }}>
+      <div style={{ marginTop: "2rem", fontSize: "0.75rem", color: "var(--text-secondary)" }}>
         提示：Naver Map 對韓文關鍵字的搜尋最準確
       </div>
     </main>
