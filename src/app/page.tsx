@@ -2,11 +2,9 @@
 import { useState } from "react";
 
 type ResolveResult = {
-  query: string | null;     // short landmark
-  address: string | null;   // full canonical address+name
-  title: string;
-  lat: string | null;
-  lng: string | null;
+  query: string | null;     // 韓文地標名 (優先)
+  address: string | null;   // 完整地址
+  title: string;            // Google 標題
   error?: string;
 };
 
@@ -14,13 +12,13 @@ export default function Home() {
   const [url, setUrl] = useState("");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<ResolveResult | null>(null);
-  const [debugMsg, setDebugMsg] = useState("");
+  const [status, setStatus] = useState("");
 
   const handleConvert = async () => {
     if (!url) return;
     setLoading(true);
     setResult(null);
-    setDebugMsg("解析中...");
+    setStatus("正在從 Google 提取店名...");
 
     try {
       const res = await fetch("/api/resolve", {
@@ -31,151 +29,104 @@ export default function Home() {
       const data: ResolveResult = await res.json();
       setResult(data);
 
-      if (data.error) setDebugMsg(data.error);
-      else if (data.query) setDebugMsg("地標解析成功");
-      else if (data.lat) setDebugMsg("僅取得座標，將以座標開啟");
-      else setDebugMsg("無法解析");
+      if (data.error) setStatus(data.error);
+      else if (data.query) setStatus("找到韓文店名！");
+      else setStatus("已提取地點資訊");
     } catch {
-      setDebugMsg("系統繁忙，請稍後再試");
+      setStatus("連線逾時，請檢查網路或重新點擊");
     } finally {
       setLoading(false);
     }
   };
 
-  const openNaver = () => {
-    if (!result) return;
+  const openNaverSearch = (text: string) => {
+    const encoded = encodeURIComponent(text);
+    const nmapUrl = `nmap://search?query=${encoded}&appname=gmap2naver`;
+    const webUrl = `https://map.naver.com/p/search/${encoded}`;
 
-    const q = result.query || result.address || result.title;
-    let nmapPath = "";
-    let web = "";
-
-    if (q) {
-      const encoded = encodeURIComponent(q);
-      nmapPath = `search?query=${encoded}&appname=gmap2naver`;
-      web = `https://map.naver.com/p/search/${encoded}`;
-    } else if (result.lat && result.lng) {
-      nmapPath = `map?lat=${result.lat}&lng=${result.lng}&zoom=17&appname=gmap2naver`;
-      web = `https://map.naver.com/p/?c=15.00,0,0,0,dh&lng=${result.lng}&lat=${result.lat}`;
-    } else {
-      return;
-    }
-
-    const ua = navigator.userAgent;
-    const isAndroid = /Android/i.test(ua);
-    const isIOS = /iPhone|iPad|iPod/i.test(ua);
-
+    // 優先嘗試喚起 App (支援 Android Intent 與 iOS nmap)
+    const isAndroid = /Android/i.test(navigator.userAgent);
     if (isAndroid) {
-      // Android Chrome supports intent:// with native fallback — opens Naver Map
-      // app if installed, otherwise navigates to the browser_fallback_url.
-      const intentUrl =
-        `intent://${nmapPath}#Intent;scheme=nmap;` +
-        `package=com.nhn.android.nmap;` +
-        `S.browser_fallback_url=${encodeURIComponent(web)};end`;
-      window.location.href = intentUrl;
-    } else if (isIOS) {
-      // iOS Safari: nmap:// silently fails if app missing. Use same-tab
-      // location.href fallback after a short delay (popup blocker won't block).
-      window.location.href = `nmap://${nmapPath}`;
-      setTimeout(() => {
-        window.location.href = web;
-      }, 1500);
+      window.location.href = `intent://search?query=${encoded}#Intent;scheme=nmap;package=com.nhn.android.nmap;S.browser_fallback_url=${encodeURIComponent(webUrl)};end`;
     } else {
-      // Desktop: just open the web map in a new tab (within user gesture, not blocked).
-      window.open(web, "_blank");
+      window.location.href = nmapUrl;
+      setTimeout(() => {
+        if (document.hasFocus()) window.location.href = webUrl;
+      }, 1500);
     }
   };
 
-  const copy = async (text: string, msg: string) => {
+  const copyToClipboard = async (text: string) => {
     try {
       await navigator.clipboard.writeText(text);
-      setDebugMsg(msg);
+      alert("已複製到剪貼簿，可直接在 Naver Map 貼上搜尋");
     } catch {
-      setDebugMsg("複製失敗，請手動選取");
+      alert("複製失敗，請手動選取文字");
     }
   };
 
   return (
     <main>
-      <div style={{ fontSize: "3rem", marginBottom: "1rem" }}>🇰🇷</div>
-      <h1>Google &rarr; Naver Map</h1>
-      <p className="subtitle">用地標名直接在 Naver Map 搜尋</p>
+      <div style={{ fontSize: "3.5rem", marginBottom: "1rem" }}>🇰🇷</div>
+      <h1>地標一鍵搜尋</h1>
+      <p className="subtitle">解決 Google 地圖在韓國導航不準的問題</p>
 
       <div className="input-group">
         <input
           type="text"
           value={url}
           onChange={(e) => setUrl(e.target.value)}
-          placeholder="貼上 Google Maps 分享連結..."
+          placeholder="貼上 Google Maps 分享連結"
         />
       </div>
 
       <button className="convert-btn" onClick={handleConvert} disabled={loading}>
-        {loading ? "處理中..." : "開始轉換"}
+        {loading ? "尋找店名中..." : "開始轉換"}
       </button>
 
-      <p style={{ fontSize: "0.8rem", color: "var(--text-secondary)", marginTop: "1rem" }}>
-        狀態: {debugMsg}
+      <p style={{ fontSize: "0.85rem", fontWeight: "bold", color: "var(--primary)", marginTop: "1rem" }}>
+        {status}
       </p>
 
       {result && (
         <div className="result-card">
-          {result.query && (
-            <div style={{ marginBottom: "1rem" }}>
-              <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)", textTransform: "uppercase", fontWeight: "bold" }}>
-                搜尋關鍵字
-              </span>
-              <div style={{ fontSize: "1.2rem", fontWeight: 700, marginTop: 4, wordBreak: "break-word" }}>
-                {result.query}
-              </div>
+          {/* 優先顯示最精確的搜尋關鍵字 (通常是韓文店名) */}
+          <div style={{ marginBottom: "1.5rem" }}>
+            <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)", textTransform: "uppercase", fontWeight: "bold" }}>推薦搜尋詞 (韓文)</span>
+            <div style={{ fontSize: "1.4rem", fontWeight: 800, marginTop: "8px", color: "var(--primary)", wordBreak: "break-word" }}>
+              {result.query || result.title}
             </div>
-          )}
-
-          {result.address && result.address !== result.query && (
-            <div style={{ marginBottom: "1rem" }}>
-              <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)", textTransform: "uppercase", fontWeight: "bold" }}>
-                完整地址
-              </span>
-              <div style={{ fontSize: "0.9rem", marginTop: 4, wordBreak: "break-word", color: "var(--text-secondary)" }}>
-                {result.address}
-              </div>
+            <div style={{ display: "flex", gap: "10px", marginTop: "12px" }}>
+              <button className="naver-btn" style={{ flex: 2 }} onClick={() => openNaverSearch(result.query || result.title)}>
+                在 Naver 開啟
+              </button>
+              <button className="convert-btn" style={{ flex: 1, padding: "10px", background: "#666" }} onClick={() => copyToClipboard(result.query || result.title)}>
+                複製
+              </button>
             </div>
-          )}
+          </div>
 
-          {(result.query || result.address || result.lat) && (
-            <button className="naver-btn" onClick={openNaver}>
-              在 Naver Map 開啟
-            </button>
-          )}
-
-          {result.query && (
-            <button
-              className="naver-btn"
-              style={{ background: "#888", marginTop: "0.5rem" }}
-              onClick={() => copy(result.query!, "已複製地標名")}
-            >
-              複製地標名
-            </button>
-          )}
-
+          {/* 備案：完整地址 */}
           {result.address && (
-            <button
-              className="naver-btn"
-              style={{ background: "#555", marginTop: "0.5rem" }}
-              onClick={() => copy(result.address!, "已複製完整地址")}
-            >
-              複製完整地址
-            </button>
+            <div style={{ marginTop: "1.5rem", borderTop: "1px solid #eee", paddingTop: "1rem" }}>
+              <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)", fontWeight: "bold" }}>如果搜不到店名，請試地址：</span>
+              <div style={{ fontSize: "0.9rem", margin: "8px 0", color: "#555" }}>{result.address}</div>
+              <div style={{ display: "flex", gap: "10px" }}>
+                <button className="naver-btn" style={{ background: "#007aff", flex: 2, padding: "12px" }} onClick={() => openNaverSearch(result.address!)}>
+                  按地址搜尋
+                </button>
+                <button className="convert-btn" style={{ flex: 1, padding: "10px", background: "#888" }} onClick={() => copyToClipboard(result.address!)}>
+                  複製
+                </button>
+              </div>
+            </div>
           )}
-
-          <p style={{ fontSize: "0.75rem", color: "var(--text-secondary)", marginTop: "1rem" }}>
-            {result.query
-              ? "點上方按鈕用地標名在 Naver Map 搜尋；如搜不到再試完整地址。"
-              : result.lat
-              ? "未取得地址，將以座標開啟地圖"
-              : "解析失敗"}
-          </p>
         </div>
       )}
+
+      <div style={{ marginTop: "2rem", fontSize: "0.75rem", color: var(--text-secondary) }}>
+        提示：Naver Map 對韓文關鍵字的搜尋最準確
+      </div>
     </main>
   );
 }
