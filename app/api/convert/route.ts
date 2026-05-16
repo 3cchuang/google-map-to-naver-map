@@ -27,6 +27,7 @@ export async function POST(req: Request) {
     
     return NextResponse.json({ 
       ...data, 
+      googleUrl: url,
       links 
     });
   } catch (error) {
