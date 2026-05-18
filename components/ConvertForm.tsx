@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { Search, MapPin, ExternalLink, Loader2, AlertCircle } from 'lucide-react';
 
 interface ConversionResult {
+  name: string;
   googleUrl: string;
   koreanName: string;
   links: {
@@ -22,7 +23,7 @@ export default function ConvertForm() {
 
   useEffect(() => {
     // Platform detection
-    const userAgent = navigator.userAgent || navigator.vendor || (window as (Window & { opera?: string }))['opera'];
+    const userAgent = (navigator.userAgent || navigator.vendor || (window as (Window & { opera?: string }))['opera'] || '').toString();
     const isIOS = /iPad|iPhone|iPod/.test(userAgent) && !(window as (Window & { MSStream?: any }))['MSStream'];
     const isAndroid = /android/i.test(userAgent);
 
@@ -70,7 +71,7 @@ export default function ConvertForm() {
   };
 
   return (
-    <div className="w-full max-w-md mx-auto space-y-6">
+    <div className="w-full max-w-md mx-auto space-y-6 text-zinc-900">
       <form onSubmit={handleConvert} className="space-y-4">
         <div className="relative">
           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-zinc-400">
@@ -81,7 +82,7 @@ export default function ConvertForm() {
             value={url}
             onChange={(e) => setUrl(e.target.value)}
             placeholder="Paste Google Maps URL..."
-            className="block w-full pl-10 pr-3 py-3 border border-zinc-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all shadow-sm"
+            className="block w-full pl-10 pr-3 py-3 border border-zinc-200 rounded-xl bg-white text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all shadow-sm"
             disabled={isLoading}
           />
         </div>
@@ -114,11 +115,20 @@ export default function ConvertForm() {
             <div className="p-3 bg-green-50 text-green-600 rounded-xl">
               <MapPin size={24} />
             </div>
-            <div className="space-y-1">
-              <h2 className="text-xl font-bold text-zinc-900">{result.koreanName}</h2>
-              <p className="text-sm text-zinc-500 truncate max-w-[250px]">
-                {result.googleUrl}
-              </p>
+            <div className="space-y-3 flex-1">
+              <div>
+                <p className="text-[10px] uppercase tracking-wider font-bold text-zinc-400 mb-0.5">中文地點</p>
+                <h2 className="text-lg font-bold text-zinc-900">{result.name}</h2>
+              </div>
+              <div>
+                <p className="text-[10px] uppercase tracking-wider font-bold text-zinc-400 mb-0.5">韓文地點</p>
+                <h2 className="text-lg font-bold text-zinc-700">{result.koreanName}</h2>
+              </div>
+              <div className="pt-1">
+                <p className="text-[10px] text-zinc-400 truncate max-w-[250px]">
+                  {result.googleUrl}
+                </p>
+              </div>
             </div>
           </div>
           
